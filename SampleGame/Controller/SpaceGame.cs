@@ -51,6 +51,13 @@ namespace SampleGame.Controller
 		// A random number generator
 		private Random random;
 
+		private Texture2D projectileTexture;
+		private List<Projectile> projectiles;
+
+		// The rate of fire of the player laser
+		private TimeSpan fireTime;
+		private TimeSpan previousFireTime;
+
 
 
 		public SpaceGame()
@@ -86,6 +93,12 @@ namespace SampleGame.Controller
 			// Initialize our random number generator
 			random = new Random();
 
+			projectiles = new List<Projectile>();
+
+			// Set the laser to fire every quarter second
+			fireTime = TimeSpan.FromSeconds(.15f);
+
+
 			// Initialize the player class
 			player = new Player();
 			base.Initialize();
@@ -119,11 +132,35 @@ namespace SampleGame.Controller
 				player.Position.Y += playerMoveSpeed;
 			}
 
+			// Fire only every interval we set as the fireTime
+			if (gameTime.TotalGameTime - previousFireTime > fireTime)
+			{
+				// Reset our current time
+				previousFireTime = gameTime.TotalGameTime;
+
+				// Add the projectile, but add it to the front and center of the player
+				AddProjectile(player.Position + new Vector2(player.Width / 2, 0));
+			}
+
 			// Make sure that the player does not go out of bounds
 			player.Position.X = MathHelper.Clamp(player.Position.X, 0, GraphicsDevice.Viewport.Width - player.Width);
 			player.Position.Y = MathHelper.Clamp(player.Position.Y, 0, GraphicsDevice.Viewport.Height - player.Height);
 		}
 
+
+		private void UpdateProjectiles()
+		{
+			// Update the Projectiles
+			for (int i = projectiles.Count - 1; i >= 0; i--)
+			{
+				projectiles[i].Update();
+
+				if (projectiles[i].Active == false)
+				{
+					projectiles.RemoveAt(i);
+				}
+			}
+		}
 
 
 		/// <summary>
@@ -133,8 +170,8 @@ namespace SampleGame.Controller
 		protected override void LoadContent()
 		{
 			// Load the parallaxing background
-			bgLayer1.Initialize(Content, "Texture/bgLayer1", GraphicsDevice.Viewport.Width, -3);
-			bgLayer2.Initialize(Content, "Texture/bgLayer2", GraphicsDevice.Viewport.Width, -5);
+			bgLayer1.Initialize(Content, "Texture/bgLayer1", GraphicsDevice.Viewport.Width, -1);
+			bgLayer2.Initialize(Content, "Texture/bgLayer2", GraphicsDevice.Viewport.Width, -2);
 
 			mainBackground = Content.Load<Texture2D>("Texture/mainbackground");
 			// Create a new SpriteBatch, which can be used to draw textures.
@@ -148,10 +185,19 @@ namespace SampleGame.Controller
 			Vector2 playerPosition = new Vector2(GraphicsDevice.Viewport.TitleSafeArea.X, GraphicsDevice.Viewport.TitleSafeArea.Y + GraphicsDevice.Viewport.TitleSafeArea.Height / 2);
 			player.Initialize(playerAnimation, playerPosition);
 
+			projectileTexture = Content.Load<Texture2D>("Texture/laser");
+
 			enemyTexture = Content.Load<Texture2D>("Animation/mineAnimation");
 
 		}
 
+
+		private void AddProjectile(Vector2 position)
+		{
+			Projectile projectile = new Projectile();
+			projectile.Initialize(GraphicsDevice.Viewport, projectileTexture, position);
+			projectiles.Add(projectile);
+		}
 
 
 		private void UpdateCollision()
@@ -187,6 +233,29 @@ namespace SampleGame.Controller
 					}
 				}
 		 	}
+
+			// Projectile vs Enemy Collision
+			for (int i = 0; i<projectiles.Count; i++)
+			{
+			    for (int j = 0; j<enemies.Count; j++)
+			    {
+			        // Create the rectangles we need to determine if we collided with each other
+			        rectangle1 = new Rectangle((int)projectiles[i].Position.X - projectiles[i].Width / 2, (int) projectiles[i].Position.Y - 
+			 projectiles[i].Height / 2, projectiles[i].Width, projectiles[i].Height);
+
+			        rectangle2 = new Rectangle((int)enemies[j].Position.X - enemies[j].Width / 2, (int) enemies[j].Position.Y - enemies[j].Height / 2, enemies[j].Width, enemies[j].Height);
+
+			        // Determine if the two objects collided with each other
+			        if (rectangle1.Intersects(rectangle2))
+			        {
+			            enemies[j].Health -= projectiles[i].Damage;
+			            projectiles[i].Active = false;
+			        }
+			    }
+			}
+
+
+
 		}
 
 
@@ -266,7 +335,10 @@ namespace SampleGame.Controller
 			// Update the collision
 			UpdateCollision();
 
-			base.Update(gameTime);
+			// Update the projectiles
+			UpdateProjectiles();
+
+
 			// Save the previous state of the keyboard and game pad so we can determinesingle key/button presses
 			previousGamePadState = currentGamePadState;
 			previousKeyboardState = currentKeyboardState;
@@ -278,6 +350,7 @@ namespace SampleGame.Controller
 
 			//Update the player
 			UpdatePlayer(gameTime);
+			base.Update(gameTime);
 		}
 
 
@@ -306,6 +379,13 @@ namespace SampleGame.Controller
 			for (int i = 0; i<enemies.Count; i++)
 			{
 			enemies[i].Draw(spriteBatch);
+			}
+
+			//Draw the projectiles with this loop in the Draw method after the enemies are drawn and before the.End() call
+			// Draw the Projectiles
+			for (int i = 0; i<projectiles.Count; i++)
+			{
+				projectiles[i].Draw(spriteBatch);
 			}
 
 			// Stop drawing 
